@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lowball"
+version = "0.1.0"
+description = "Hypixel SkyBlock lowballing assistant - valuation, offer model and ledger"
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.7",
+    "pyqtgraph>=0.13.7",
+    "httpx>=0.27",
+    "websockets>=13.0",
+    "nbtlib>=2.0",
+    "ruamel.yaml>=0.18",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+report = ["matplotlib>=3.9"]
+
+[project.scripts]
+lowball = "lowball.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["lowball"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["error::DeprecationWarning:lowball.*"]
+
+[tool.ruff]
+line-length = 96
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

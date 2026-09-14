@@ -1,0 +1,119 @@
+# Lowballing rules.
+#
+# Written by the rule builder in the Config tab, and readable by hand. Every
+# rule the builder can express is a rule the engine understands, because both
+# are generated from the same catalogue.
+#
+# Evaluated in ascending priority. For each action the first rule to set it
+# wins, so a lower number is a stronger rule.
+#
+# Conditions: a bare value means equality, a nested mapping is an operator.
+#   pet_level: {lt: 100}      eq ne lt lte gt gte in not_in contains matches exists
+#
+# Actions:
+#   offer_pct   override the recommended offer, as a percentage below estimate
+#   max_coins   hard cap, whatever the valuation says
+#   exclude     never buy this
+#   normalise   rewrite the item before it is valued
+#   valuation   override how the estimate is derived
+#   note        free text, shown with the badge
+#   stop        stop evaluating further rules
+#
+# Every rule that fires is badged next to the number it produced.
+
+- name: Never buy museum donations
+  priority: 5
+  when: {tag: {matches: "^MUSEUM"}}
+  then:
+    exclude: true
+    note: Cannot be resold
+
+  # A cheap skin is not a selling point, and matching on it finds nothing.
+  # Pricing the item as bare is closer to what it will fetch.
+- name: Cheap pet skins do not count
+  priority: 8
+  when:
+    is_pet: true
+    pet_skin_value: {lt: 50000000}
+  then:
+    normalise: {pet_skin: none}
+    note: Skin is worth too little to price the pet as skinned
+
+- name: Cheap enchantments are noise
+  priority: 9
+  when:
+    top_enchant_value: {gt: 0}
+  then:
+    normalise: {drop_enchants_below: 10000000}
+    note: Enchantments under 10M neither narrow the search nor move the price
+
+- name: Skins are illiquid
+  priority: 10
+  when:
+    has_skin: true
+    skin_value: {gte: 50000000}
+  then:
+    offer_pct: 25
+    note: Skinned items sit on the auction house for weeks
+
+- name: Dyed items are illiquid
+  priority: 11
+  when: {has_dye: true}
+  then:
+    offer_pct: 22
+    note: A small buyer pool and a wide spread
+
+- name: Low pets price as level 1
+  priority: 20
+  when:
+    is_pet: true
+    pet_level: {lt: 100}
+  then:
+    normalise: {pet_level: 1}
+    note: Pet experience below 100 adds little that a buyer will pay for
+
+  # Coflnet reads PetLevel=100 as "100 or more exp" rather than "level 100",
+  # so on a pet that levels past 100 the filter matches most of the market.
+  # The parser flags these by leaving the level inexact; this rule makes the
+  # consequence visible in the UI rather than leaving it implicit.
+- name: Dragon pets are not priced by level
+  priority: 21
+  when:
+    is_pet: true
+    pet_level_is_exact: false
+  then:
+    note: Level above 100 is not filterable; priced on exp instead
+
+- name: Candied pets sell for less
+  priority: 25
+  when:
+    is_pet: true
+    pet_candy: {gt: 0}
+  then:
+    offer_pct: 20
+    note: Candy caps the pet and buyers discount it
+
+- name: Rough gemstones are an empty slot
+  priority: 30
+  when:
+    gem_count: {gt: 0}
+  then:
+    normalise: {drop_gems_below: FINE}
+    note: Below Fine a gemstone is worth less than the slot it sits in
+
+- name: Stackables need a deeper discount
+  priority: 40
+  when:
+    is_stackable: true
+    count: {gt: 1}
+  then:
+    offer_pct: 18
+    note: No item identity, so a stack cannot be tracked to its listing
+
+- name: Be careful with attribute armour
+  priority: 50
+  when:
+    category: Armor
+    attributes: {exists: true}
+  then:
+    note: Attribute prices move fast; check the comparables before offering

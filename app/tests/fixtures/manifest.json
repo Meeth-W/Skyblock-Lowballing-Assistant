@@ -1,0 +1,35 @@
+{
+  "hyperion_wither_impact": {
+    "tag": "HYPERION",
+    "count": 1
+  },
+  "crimson_chestplate_attributes": {
+    "tag": "CRIMSON_CHESTPLATE",
+    "count": 1
+  },
+  "golden_dragon_pet": {
+    "tag": "PET",
+    "count": 1
+  },
+  "low_level_wolf_pet": {
+    "tag": "PET",
+    "count": 1
+  },
+  "skinned_dyed_helmet": {
+    "tag": "POWER_WITHER_HELMET",
+    "count": 1
+  },
+  "stackable_enchanted_book": {
+    "tag": "ENCHANTED_BOOK",
+    "count": 16
+  },
+  "runed_terminator": {
+    "tag": "TERMINATOR",
+    "count": 1
+  },
+  "vanilla_cobblestone": {
+    "tag": null,
+    "count": 64
+  },
+  "_inventory_slots": 9
+}

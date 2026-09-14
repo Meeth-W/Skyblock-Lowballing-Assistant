@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "${id}",
+  "version": "${version}",
+  "name": "${name}",
+  "description": "Read-only capture of trade screen contents, forwarded to a local desktop app over a loopback WebSocket. Sends nothing to the server and performs no gameplay action.",
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      {
+        "adapter": "kotlin",
+        "value": "dev.lowball.LowballMod"
+      }
+    ]
+  },
+  "mixins": [
+    "lowball.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader}",
+    "fabric-api": "*",
+    "fabric-language-kotlin": "*",
+    "minecraft": "${mc}",
+    "java": ">=${java}"
+  }
+}

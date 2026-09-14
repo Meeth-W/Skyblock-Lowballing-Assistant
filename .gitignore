@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+
+# Local data
+*.db
+*.db-wal
+*.db-shm
+data/
+*.log
+
+# Gradle / Kotlin
+.gradle/
+mod/build/
+mod/versions/*/build/
+mod/run/
+mod/.stonecutter/
+!mod/gradle/wrapper/gradle-wrapper.jar
+
+# Editors / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Stonecutter generates per-version source trees
+mod/versions/*/build/
+mod/versions/*/src/
+
+# Diagnostic dumps from --listen
+failed-items/
