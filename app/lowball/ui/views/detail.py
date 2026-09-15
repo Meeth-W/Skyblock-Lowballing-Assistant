@@ -5,9 +5,14 @@ is worth and how sure we are, what the market looks like right now, and then
 the evidence underneath. The estimate is the only figure at display size,
 because it is the only one being read out loud.
 
-The estimate is also the only thing here that is clickable. Clicking it opens
-the whole derivation, and the control to overrule it: a lowballer looking at
-the item can know things the comparables cannot.
+Clicking the estimate opens the whole derivation, and the control to overrule
+it: a lowballer looking at the item can know things the comparables cannot.
+
+Every other figure here that came from one identifiable listing is clickable
+too, and leads to that listing -- ``/ah`` for its seller on the clipboard, or
+the auction itself in a browser. "Where are you getting that from" is the
+question a lowballer answers most often, and the evidence was previously on
+screen without being reachable from it.
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from ...api.coflnet import attribution_url
 from ...money import format_coins, format_coins_exact
 from ...pricing.valuation import Valuation
 from ...timeutil import age_seconds, format_duration
@@ -32,6 +38,7 @@ from ..theme import (
     ui_font,
 )
 from ..widgets.indicators import ConfidenceDots, RuleBadge
+from ..widgets.links import AuctionLink, UrlLink
 from ..widgets.primitives import Hairline, KeyValueRow, SectionLabel
 
 
@@ -59,6 +66,8 @@ class ClickableFigure(QLabel):
 class ItemDetailPane(QWidget):
     #: The user clicked the estimate and wants to see where it came from.
     breakdown_requested = Signal()
+    #: (action, auction) -- a market figure was clicked. See widgets.links.
+    auction_action = Signal(str, object)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -222,27 +231,42 @@ class ItemDetailPane(QWidget):
             layout.addWidget(split)
         return holder
 
+    def _link(self, text: str, auction, note: str) -> AuctionLink:
+        """One place every clickable price is built, so they behave alike."""
+        link = AuctionLink(text, auction, note=note)
+        link.setFont(numeric_font(SIZE_BODY))
+        link.activated.connect(self.auction_action.emit)
+        return link
+
     def _market_block(self, valuation: Valuation) -> QWidget:
         holder = QWidget()
         layout = QVBoxLayout(holder)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
-        lbin = KeyValueRow("Lowest BIN", format_coins(valuation.lbin_price))
+        # The headline market figure, and the one most worth reaching: it is
+        # what the user is about to undercut, so the seller behind it is who
+        # they are about to compete with.
+        note = "The cheapest matching listing"
         if valuation.lbin.rejected_count:
-            lbin.set_value(
-                format_coins(valuation.lbin_price),
-                tooltip=(
-                    f"{valuation.lbin.rejected_count} cheaper listing(s) ignored as"
-                    " implausible against the sales median"
-                ),
+            note = (
+                f"{valuation.lbin.rejected_count} cheaper listing(s) ignored as"
+                " implausible against the sales median"
             )
-        layout.addWidget(lbin)
+        lbin_link = self._link(
+            format_coins(valuation.lbin_price), valuation.lbin.listing, note
+        )
+        layout.addWidget(KeyValueRow("Lowest BIN", value_widget=lbin_link))
 
-        median_row = KeyValueRow("Median", format_coins(valuation.median))
-        median_row.set_value(
-            format_coins(valuation.median),
-            tooltip=f"n={valuation.search.sales_count} matching sales",
+        # A median is a market, not a listing, so it goes to the item page
+        # rather than to an auction that does not exist.
+        median_row = KeyValueRow(
+            "Median",
+            value_widget=UrlLink(
+                format_coins(valuation.median),
+                attribution_url(valuation.sig.tag),
+                hint=f"n={valuation.search.sales_count} matching sales",
+            ),
         )
         layout.addWidget(median_row)
 
@@ -289,9 +313,9 @@ class ItemDetailPane(QWidget):
         for sale in sales:
             row = QHBoxLayout()
             row.setContentsMargins(0, 1, 0, 1)
-            price = QLabel(format_coins(sale.unit_price))
-            price.setFont(numeric_font(SIZE_BODY))
-            price.setToolTip(format_coins_exact(sale.unit_price))
+            price = self._link(
+                format_coins(sale.unit_price), sale, format_coins_exact(sale.unit_price)
+            )
             when = QLabel(_ago(sale.end))
             when.setObjectName("faint")
             when.setFont(ui_font(SIZE_MICRO))
@@ -327,9 +351,11 @@ class ItemDetailPane(QWidget):
         for auction, was_rejected in entries[:4]:
             row = QHBoxLayout()
             row.setContentsMargins(0, 1, 0, 1)
-            price = QLabel(format_coins(auction.unit_price))
-            price.setFont(numeric_font(SIZE_BODY))
-            price.setToolTip(format_coins_exact(auction.unit_price))
+            price = self._link(
+                format_coins(auction.unit_price),
+                auction,
+                format_coins_exact(auction.unit_price),
+            )
             row.addWidget(price)
             row.addStretch(1)
             if was_rejected and median:

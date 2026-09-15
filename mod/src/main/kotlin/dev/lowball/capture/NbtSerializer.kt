@@ -95,19 +95,4 @@ object NbtSerializer {
             null
         }
     }
-
-    /**
-     * A cheap fingerprint of a container's contents.
-     *
-     * Used to tell whether anything changed before spending work on encoding.
-     */
-    fun fingerprint(stacks: List<ItemStack>): Int {
-        var hash = 17
-        for (stack in stacks) {
-            hash = hash * 31 + if (stack.isEmpty) 0 else stack.item.hashCode()
-            hash = hash * 31 + stack.count
-            hash = hash * 31 + stack.components.hashCode()
-        }
-        return hash
-    }
 }

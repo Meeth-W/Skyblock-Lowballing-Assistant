@@ -20,9 +20,11 @@ from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
+from .api import players
 from .api.bazaar import fetch_prices
 from .api.cache import ApiCache
 from .api.coflnet import CoflnetClient
+from .api.models import Auction
 from .config import Settings
 from .ledger import Ledger, connect
 from .money import format_coins
@@ -81,6 +83,10 @@ class AppController(QObject):
     status_message = Signal(str)
     #: A bazaar refresh finished: either {product: price} or the exception.
     bazaar_prices = Signal(object)
+    #: (text, message) -- put this on the clipboard and say that in the status
+    #: line.  Emitted rather than acted on because the clipboard belongs to the
+    #: GUI thread and the name behind the text often comes from the network.
+    clipboard_requested = Signal(str, str)
 
     def __init__(self, settings: Settings, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -121,6 +127,10 @@ class AppController(QObject):
         # no counterparty -- items can be picked out of a chest with nobody
         # present -- so the name only becomes known when the trade lands.
         self._last_settled: SettledTrade | None = None
+        # Seller lookups already in flight.  Selecting an item and that item
+        # finishing its valuation both ask for the same name, and without this
+        # they would ask twice before either answer came back.
+        self._resolving: set[str] = set()
 
     def _load_rules(self) -> list:
         path = self.settings.rules_file
@@ -345,6 +355,91 @@ class AppController(QObject):
             self.status_message.emit(
                 f"{item.sig.tag} valued by hand at {format_coins(coins)}"
             )
+
+    # ---- reaching the listing behind a price -----------------------------
+
+    def copy_ah_command(self, auction: Auction) -> None:
+        """Put ``/ah <seller>`` on the clipboard for one listing.
+
+        The listing names its seller as a UUID and the command takes a name, so
+        this may need a lookup.  It is done here rather than eagerly for every
+        listing on screen because the rate limiter is shared with the valuation
+        the user is waiting on, and a name they never ask for is a request that
+        should never have been spent.
+
+        Cached for a week, so in practice the second click on any seller -- and
+        the first on the lowest BIN, which is warmed when the item is shown --
+        resolves without touching the network at all.
+        """
+        seller = auction.seller
+        if not seller:
+            # Nothing to look up.  The direct command still reaches the listing.
+            self._fall_back_to_viewauction(auction, "That listing does not name its seller")
+            return
+
+        cached = players.known(seller)
+        if cached:
+            self.clipboard_requested.emit(f"/ah {cached}", f"Copied /ah {cached}")
+            return
+
+        if not self.bridge.is_running:
+            self._fall_back_to_viewauction(auction, "Still starting up")
+            return
+
+        self.status_message.emit("Looking up the seller…")
+
+        def _done(done) -> None:
+            self._resolving.discard(seller)
+            if done.cancelled():
+                return
+            name = None if done.exception() is not None else done.result()
+            if not name:
+                self._fall_back_to_viewauction(auction, "Could not find the seller name")
+                return
+            players.remember(seller, name)
+            self.clipboard_requested.emit(f"/ah {name}", f"Copied /ah {name}")
+
+        self._resolving.add(seller)
+        self.bridge.submit(self.coflnet.player_name(seller)).add_done_callback(_done)
+
+    def _fall_back_to_viewauction(self, auction: Auction, why: str) -> None:
+        """When the name cannot be had, the listing still can.
+
+        ``/viewauction`` takes the auction id and opens that exact listing, so
+        the user is never left with nothing on the clipboard after a click that
+        looked like it worked.
+        """
+        uuid = auction.uuid or ""
+        if not uuid:
+            self.status_message.emit(f"{why}, and there is no listing id to fall back on")
+            return
+        self.clipboard_requested.emit(
+            f"/viewauction {uuid}", f"{why} — copied /viewauction instead"
+        )
+
+    def prefetch_seller(self, valuation: Valuation | None) -> None:
+        """Warm the name behind the lowest BIN of the item now on screen.
+
+        One request, for one listing, for the item the user is actually looking
+        at -- not for every listing of every item in the trade.  It runs after
+        the price is already displayed, so it cannot delay the number anyone is
+        waiting for, and it is what makes the click that follows feel instant.
+        """
+        if valuation is None or not self.bridge.is_running:
+            return
+        listing = valuation.lbin.listing
+        seller = listing.seller if listing is not None else None
+        if not seller or players.known(seller) or seller in self._resolving:
+            return
+
+        def _done(done) -> None:
+            self._resolving.discard(seller)
+            if done.cancelled() or done.exception() is not None:
+                return
+            players.remember(seller, done.result())
+
+        self._resolving.add(seller)
+        self.bridge.submit(self.coflnet.player_name(seller)).add_done_callback(_done)
 
     def _emit_totals(self) -> None:
         priced = [i for i in self.items if i.valuation is not None]

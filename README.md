@@ -20,6 +20,7 @@ The mod runs inside Minecraft and sends item data to the desktop app over a **lo
 ### Desktop App
 
 - **Item Valuation** — Prices items using comparable auction sales from the Coflnet API, with modifier-aware matching (enchantments, reforges, stars, gems, attributes, pet level/skin)
+- **Reachable Evidence** — Every price that came from one identifiable listing is clickable: left click copies `/ah <seller>` for pasting into chat, right click offers `/viewauction`, the listing on SkyCofl, or the exact figure
 - **Offer Model** — Generates buy offers factoring in target margin, estimated sell time, auction tax, confidence level, and modifier value adjustments
 - **Rule Engine** — User-configurable YAML rules that override or adjust valuations for specific item categories, rarities, or tags
 - **Trade Ledger** — SQLite-backed log of every trade with full item detail, profit/loss tracking, and historical projections
@@ -31,8 +32,9 @@ The mod runs inside Minecraft and sends item data to the desktop app over a **lo
 
 ### Minecraft Mod
 
-- **Item Selection** — Click slots in any container screen to select items for pricing; selection persists across screens
+- **Item Selection** — Click slots in any container screen to select items for pricing; selection persists across screens, and each picked slot is marked with its position in the order the app will list it
 - **Send to App** — Transmits the selected item set (with full NBT data) to the desktop app
+- **In-Game Panel** — Drawn in the desktop app's palette rather than assembled from vanilla widgets, and shows the connection state so you know whether the app is listening before you send
 - **Trade Outcome Capture** — Watches chat for Hypixel's `Trade completed with …` announcement and forwards the settled items and coin amounts
 - **Multi-Version** — Built with Stonecutter for Minecraft 26.1.2 and 26.2
 
@@ -116,7 +118,7 @@ mod/versions/26.2/build/libs/lowball-26.2-0.1.0+26.2.jar
 
 1. **Start the desktop app** — it begins listening on `ws://127.0.0.1:8765`
 2. **Launch Minecraft** with the Lowball Fabric mod installed
-3. **Open a trade or chest** — use the mod's on-screen buttons to select items
+3. **Open a trade or chest** — use the mod's on-screen panel to select items
 4. **Click Send** — the selected items appear in the desktop app with valuations and a recommended offer
 5. **Complete the trade** — the mod captures the trade outcome from chat and logs it to the ledger
 
@@ -151,6 +153,8 @@ prefetch_tags:
 ```
 
 Custom valuation rules can be defined in `~/.lowball/rules.yaml`. The app ships with sensible defaults covering common lowballing scenarios.
+
+The mod has its own two-line file at `.minecraft/config/lowball.properties`, written with defaults on first run. It carries the host and the port and nothing else — change the port there and pass the same number to the app with `--port`.
 
 ---
 

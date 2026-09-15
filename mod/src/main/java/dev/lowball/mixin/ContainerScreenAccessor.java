@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * Read-only access to three layout fields the container screen keeps to itself.
+ * Read-only access to four layout fields the container screen keeps to itself.
  *
  * <p>This is an {@code @Accessor} mixin and nothing else: it adds no behaviour,
  * intercepts no method, and changes nothing the game does. It exists because
@@ -31,4 +31,14 @@ public interface ContainerScreenAccessor {
     /** Top edge of the container window, in screen coordinates. */
     @Accessor("topPos")
     int lowball$topPos();
+
+    /**
+     * Width of the container window.
+     *
+     * <p>The overlay panel is placed beside the window rather than at the
+     * screen edge, because widgets are drawn before slot contents and anything
+     * overlapping the window would end up underneath the items in it.
+     */
+    @Accessor("imageWidth")
+    int lowball$imageWidth();
 }

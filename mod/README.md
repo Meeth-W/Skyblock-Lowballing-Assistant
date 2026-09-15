@@ -5,8 +5,8 @@ loopback WebSocket.
 
 ## What it does
 
-1. Puts three buttons on every container screen — your inventory, a chest, the
-   trade window: **Select items**, **Send (n)**, **Clear**.
+1. Puts one panel beside every container screen — your inventory, a chest, the
+   trade window — carrying **Select items**, **Send (n)** and **Clear**.
 2. While the tool is armed, a click on a slot picks that item instead of doing
    what it normally would. Click a picked slot again to drop it.
 3. **Send** transmits the picked set to the desktop app.
@@ -20,7 +20,52 @@ than something that happens on every click: picking is fiddly and often
 involves changing your mind, and the app should see the set you settled on
 rather than every intermediate state of it.
 
-There is no keybind. The buttons are the whole interface.
+There is no keybind. The panel is the whole interface.
+
+### The panel
+
+Drawn rather than assembled from vanilla widgets, in the desktop app's own
+palette — the tokens in `ui/Palette.kt` are the ones in `app/lowball/ui/
+theme.py`, under the same names. Two surfaces that are one product should not
+have to be recognised separately, and a vanilla button carries Minecraft's
+look, not this tool's.
+
+It is drawn from three primitives and no textures: a filled rectangle, a 1px
+hairline, and 2px of space. The alternative was nine-slice sprites, which is
+why most overlays stop matching their host the first time vanilla retextures
+its widgets.
+
+    ● LOWBALL          a dot: green connected, amber connecting, red offline
+    ─────────────
+    [ Select items ]   toggles; accent-bordered while armed
+    [ Send 3       ]   primary; disabled with nothing picked
+    [ Clear        ]   ghost
+    ─────────────
+    Connected          the link, in the dot's colour
+    Clicks pick items  only while armed
+
+It sits beside the container window rather than at the screen edge. Screen
+widgets are drawn *before* slot contents, so anything overlapping the window
+ends up underneath the items in it — at high GUI scale on a small window that
+is not a corner case. Right of the window by preference, left when the right
+would run off screen.
+
+The last line is also where the mod says anything it has to say — sent,
+cleared, slot unreadable, selection full. Chat was the alternative, and chat is
+the last place a mod that must never be mistaken for one that talks to the
+server should be writing. It is also the wrong place: the user is looking at
+the container window, not at the log behind it.
+
+### Marks on the slots
+
+A picked slot gets a wash of accent, a 1px outline, and its position in the
+pick order in the corner. The order matters because the app lists items in it,
+and without the number, matching a row on screen to an item in the window means
+counting clicks backwards.
+
+While the tool is armed, the slot under the cursor gets a faint outline too:
+arming changes what every click in the window means, so the slot has to say so
+before the click rather than after it.
 
 ### Why selection rather than detection
 
@@ -74,11 +119,12 @@ The select tool is the opposite of a macro: while armed, a click over a slot is
 one. Clicks that are not over a slot pass through untouched, while the tool is
 disarmed the mod does not touch input at all, and no key is bound to anything.
 
-It does now render — a button and an outline around picked slots. Rendering is
+It does now render — a panel, and marks on the picked slots. Rendering is
 client-side and sends nothing.
 
 There is one mixin, `ContainerScreenAccessor`. It is an `@Accessor` and nothing
-else: three read-only getters for `hoveredSlot`, `leftPos` and `topPos`. It
+else: four read-only getters for `hoveredSlot`, `leftPos`, `topPos` and
+`imageWidth`. It
 intercepts no method and changes nothing the game does. It exists because
 Minecraft has already worked out which slot the cursor is over, and recomputing
 that would mean hardcoding the vanilla GUI layout.
@@ -133,9 +179,27 @@ unobfuscated, so there is no Yarn remapping step.
 
 ## Configuration
 
-The port and the capture key, and nothing else. Every decision that matters is
-made in the desktop app, which is what keeps the quarterly version bumps cheap.
-The capture key is unbound by default; set it in Controls.
+`config/lowball.properties`, written with defaults on first run:
+
+```properties
+host=127.0.0.1
+port=8765
+```
+
+The host and the port, and nothing else. Every decision that matters is made in
+the desktop app, which is what keeps the quarterly version bumps cheap; the
+port is here only because two programs have to agree on it and something else
+may already hold 8765. The app takes the same number with `--port`.
+
+A `.properties` file rather than JSON because the JDK already parses it, so the
+mod ships no serialisation library for two lines of configuration. Anything
+unreadable falls back to the default and says so in the log — a mod that
+refuses to load over a stray character in a port number is worse than one that
+quietly uses 8765.
+
+The version in the `hello` frame is read from the mod's own metadata rather
+than repeated in the source, so it cannot drift from `gradle.properties` and
+send a bug report to the wrong release.
 
 ## Layout assumptions
 

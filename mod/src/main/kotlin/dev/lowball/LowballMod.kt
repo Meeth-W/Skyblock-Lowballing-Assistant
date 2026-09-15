@@ -4,7 +4,9 @@ import dev.lowball.capture.Messages
 import dev.lowball.chat.TradeChatWatcher
 import dev.lowball.net.UplinkClient
 import dev.lowball.select.SelectionScreenHook
+import dev.lowball.ui.LinkState
 import net.fabricmc.api.ClientModInitializer
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents
 import net.minecraft.client.Minecraft
@@ -15,7 +17,7 @@ import org.slf4j.LoggerFactory
  *
  * The complete list of what this mod does:
  *
- *  1. put Select / Send / Clear buttons on container screens;
+ *  1. put a Select / Send / Clear panel on container screens;
  *  2. while the tool is armed, treat a click on a slot as picking that item
  *     for pricing;
  *  3. send the picked items to a desktop app on loopback when Send is pressed;
@@ -30,7 +32,7 @@ import org.slf4j.LoggerFactory
  *
  * The select tool is the opposite of a macro: while armed, a click over a slot
  * is swallowed, so it causes *no* in-game action where it normally would cause
- * one. The mod renders a button and reads what the client already has. The
+ * one. The mod renders a panel and reads what the client already has. The
  * desktop app has no channel back into the game; there is no receive path here
  * to add one to.
  */
@@ -45,10 +47,12 @@ object LowballMod : ClientModInitializer {
     private var greeted = false
 
     override fun onInitializeClient() {
-        uplink = UplinkClient(Config.HOST, Config.PORT)
+        Config.load()
+
+        uplink = UplinkClient(Config.host, Config.port)
         uplink.onConnected = {
             greeted = false
-            log.info("Lowball: connected to the desktop app on {}:{}", Config.HOST, Config.PORT)
+            log.info("Lowball: connected to the desktop app on {}:{}", Config.host, Config.port)
         }
         uplink.onDisconnected = {
             greeted = false
@@ -56,7 +60,10 @@ object LowballMod : ClientModInitializer {
         }
         uplink.start()
 
-        selection = SelectionScreenHook(uplink::send)
+        // The panel shows the link state, so the mapping from socket to colour
+        // lives here rather than in the UI: the screen hook should not know
+        // what a WebSocket is, and the client should not know what green means.
+        selection = SelectionScreenHook(uplink::send, ::linkState)
         selection.register()
 
         chat = TradeChatWatcher(uplink::send)
@@ -69,7 +76,20 @@ object LowballMod : ClientModInitializer {
         }
 
         ClientTickEvents.END_CLIENT_TICK.register(::onClientTick)
-        log.info("Lowball uplink ready, read-only, sending to ws://{}:{}", Config.HOST, Config.PORT)
+        // Closing the socket on the way out spares the app a dead connection
+        // to time out, which is what it would otherwise still be showing as
+        // "connected" for the next fifteen seconds.
+        ClientLifecycleEvents.CLIENT_STOPPING.register { uplink.stop() }
+        log.info(
+            "Lowball {} ready, read-only, sending to ws://{}:{}",
+            Config.modVersion, Config.host, Config.port,
+        )
+    }
+
+    private fun linkState(): LinkState = when {
+        uplink.isConnected -> LinkState.CONNECTED
+        uplink.isConnecting -> LinkState.CONNECTING
+        else -> LinkState.OFFLINE
     }
 
     private fun onClientTick(client: Minecraft) {
@@ -81,7 +101,7 @@ object LowballMod : ClientModInitializer {
             greeted = true
             uplink.send(
                 Messages.hello(
-                    Config.MOD_VERSION,
+                    Config.modVersion,
                     client.launchedVersion,
                     player.uuid.toString(),
                     player.name.string,

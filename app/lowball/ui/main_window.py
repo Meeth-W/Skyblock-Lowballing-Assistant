@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -21,13 +22,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..money import format_coins
+from ..api.coflnet import auction_url
+from ..money import format_coins, format_coins_exact
 from ..uplink import UplinkStatus
 from .theme import ACCENT, GRID, INK_DIM, LOSS, SIZE_MICRO, stylesheet, ui_font
 from .views.config import ConfigView
 from .views.ledger import LedgerView
 from .views.statistics import StatisticsView
 from .views.valuation import ValuationView
+from .widgets.links import ACTION_AH, ACTION_EXACT, ACTION_OPEN, ACTION_VIEW
 
 if TYPE_CHECKING:  # the controller imports from this package, so only for types
     from ..controller import AppController
@@ -89,12 +92,15 @@ class MainWindow(QMainWindow):
         c.status_message.connect(self._on_message)
         c.ledger_changed.connect(self._on_ledger_changed)
         c.settled_trade.connect(self._on_settled)
+        c.clipboard_requested.connect(self._on_clipboard)
+        c.item_valued.connect(self._on_item_valued)
 
         self.valuation.item_selected.connect(self._on_item_selected)
         self.valuation.offer_made.connect(c.make_offer)
         self.valuation.offer_rejected.connect(c.reject_offer)
         self.valuation.sale_confirmed.connect(c.confirm_sale)
         self.valuation.estimate_overridden.connect(c.override_estimate)
+        self.valuation.auction_action.connect(self._on_auction_action)
         self.ledger.changed.connect(self._on_ledger_written)
         self.ledger.status.connect(self._on_message)
         self.ledger.clear_confirmed.connect(self._clear_history)
@@ -153,8 +159,48 @@ class MainWindow(QMainWindow):
         item = items[index]
         if item.valuation is not None and item.ladder is not None:
             self.valuation.show_valuation(index, item.valuation, item.ladder)
+            self.controller.prefetch_seller(item.valuation)
         else:
             self.valuation.show_pending(index, item.sig)
+
+    def _on_item_valued(self, index: int, valuation, _ladder) -> None:
+        """Warm the seller name, but only for the item actually on screen.
+
+        Every item in a trade is valued; only one of them is being looked at.
+        Prefetching for all of them would spend rate-limit budget on listings
+        nobody will click, during the window where the remaining valuations are
+        still queued behind it.
+        """
+        if index == self.valuation.trade.selected_index:
+            self.controller.prefetch_seller(valuation)
+
+    # ---- reaching the listing behind a price -----------------------------
+
+    def _on_auction_action(self, action: str, auction) -> None:
+        """A market figure was clicked. Three of the four need no network."""
+        if auction is None:
+            return
+        if action == ACTION_AH:
+            self.controller.copy_ah_command(auction)
+        elif action == ACTION_VIEW:
+            self._on_clipboard(
+                f"/viewauction {auction.uuid}", "Copied /viewauction for that listing"
+            )
+        elif action == ACTION_OPEN:
+            QDesktopServices.openUrl(QUrl(auction_url(auction.uuid)))
+            self._on_message("Opened the listing on SkyCofl")
+        elif action == ACTION_EXACT:
+            exact = format_coins_exact(auction.unit_price)
+            self._on_clipboard(exact, f"Copied {exact}")
+
+    def _on_clipboard(self, text: str, message: str) -> None:
+        """The one place anything is written to the clipboard."""
+        clipboard = QApplication.clipboard()
+        if clipboard is None:  # headless, or a platform without one
+            self._on_message("No clipboard available on this system")
+            return
+        clipboard.setText(text)
+        self._on_message(message)
 
     def _on_settled(self, settled, matched_index) -> None:
         """A trade actually completed, according to the server's own message.

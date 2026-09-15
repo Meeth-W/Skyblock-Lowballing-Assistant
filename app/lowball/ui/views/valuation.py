@@ -145,6 +145,8 @@ class ValuationView(QWidget):
     offer_rejected = Signal(int, object)
     #: (index, coins or None) -- the user set the value by hand, or undid it.
     estimate_overridden = Signal(int, object)
+    #: (action, auction) -- a market figure was clicked. See widgets.links.
+    auction_action = Signal(str, object)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -189,6 +191,7 @@ class ValuationView(QWidget):
 
         self.trade.item_selected.connect(self._on_item_selected)
         self.detail.breakdown_requested.connect(self._show_breakdown)
+        self.detail.auction_action.connect(self.auction_action.emit)
         self.ladder.offer_made.connect(
             lambda rung: self.offer_made.emit(self.trade.selected_index, rung)
         )
@@ -213,6 +216,7 @@ class ValuationView(QWidget):
         dialog.override_requested.connect(
             lambda coins, i=index: self.estimate_overridden.emit(i, coins)
         )
+        dialog.auction_action.connect(self.auction_action.emit)
         dialog.exec()
 
     def _on_item_selected(self, index: int) -> None:

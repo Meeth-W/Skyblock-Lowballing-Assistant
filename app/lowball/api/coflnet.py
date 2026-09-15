@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +21,7 @@ from .cache import (
     TTL_ACTIVE_BIN,
     TTL_ANALYSIS,
     TTL_AUCTION,
+    TTL_PLAYER_NAME,
     TTL_SOLD,
     ApiCache,
     scale_ttl,
@@ -41,6 +43,11 @@ RETRYABLE_STATUS = frozenset({502, 503, 504})
 
 def attribution_url(tag: str) -> str:
     return f"https://sky.coflnet.com/item/{tag}"
+
+
+def auction_url(auction_uuid: str) -> str:
+    """The public page for one listing, which is what a browser should open."""
+    return f"https://sky.coflnet.com/auction/{auction_uuid}"
 
 
 class CoflnetError(RuntimeError):
@@ -117,6 +124,7 @@ class CoflnetClient:
         ttl: int,
         params: dict[str, Any] | None = None,
         allow_stale_on_error: bool = True,
+        decode: Any = None,
     ) -> Any:
         cached = self.cache.get(cache_key)
         if cached is not None:
@@ -165,7 +173,7 @@ class CoflnetClient:
                 continue
 
             try:
-                payload = response.json()
+                payload = (decode or _json_body)(response)
             except ValueError as exc:
                 last_error = CoflnetError(f"unreadable response from {path}: {exc}")
                 self.stats.errors += 1
@@ -269,10 +277,55 @@ class CoflnetClient:
             return Auction.parse(payload, sold=True)
         return None
 
+    async def player_name(self, player_uuid: str) -> str | None:
+        """The in-game name behind an auctioneer id.
+
+        Listings carry the seller as a UUID, and the command a lowballer
+        actually types is ``/ah <name>``.  This is the only endpoint here that
+        answers in ``text/plain`` rather than JSON, which is why the request
+        path takes a decoder.
+
+        Cached for a week.  A name is close to immutable, the failure mode of a
+        stale one is a command the user can see is wrong before running it, and
+        the alternative is spending rate-limit budget mid-trade on a question
+        with the same answer as last time.
+        """
+        player_uuid = (player_uuid or "").strip()
+        if not player_uuid:
+            return None
+        key = self.cache.make_key("player_name", player_uuid)
+        payload = await self._get(
+            f"/api/player/{player_uuid}/name",
+            cache_key=key,
+            ttl=TTL_PLAYER_NAME,
+            decode=_plain_name,
+        )
+        return payload if isinstance(payload, str) and payload else None
+
     async def lowest_bin(self, tag: str, filters: dict[str, Any] | None = None) -> int | None:
         listings = await self.active_bin(tag, filters)
         prices = sorted(a.unit_price for a in listings if a.unit_price > 0)
         return prices[0] if prices else None
+
+
+def _json_body(response: httpx.Response) -> Any:
+    return response.json()
+
+
+def _plain_name(response: httpx.Response) -> str | None:
+    """Read a bare name out of a response that may or may not be quoted JSON.
+
+    The endpoint returns ``FusionTorch``, not ``"FusionTorch"``, so ``json()``
+    raises on it.  Both shapes are accepted because which one is served is not
+    something this app controls, and a name is trivially validated: Minecraft
+    names are 3-16 characters of ``[A-Za-z0-9_]`` and anything else is an error
+    page that should not reach the clipboard.
+    """
+    text = (response.text or "").strip().strip('"')
+    return text if _VALID_NAME.fullmatch(text) else None
+
+
+_VALID_NAME = re.compile(r"[A-Za-z0-9_]{1,16}")
 
 
 def _as_auctions(payload: Any, *, sold: bool) -> list[Auction]:

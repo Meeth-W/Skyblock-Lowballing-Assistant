@@ -1,3 +1,25 @@
 {
-  "category.lowball": "Lowball Uplink"
+  "lowball.panel.title": "LOWBALL",
+
+  "lowball.button.select": "Select items",
+  "lowball.button.selecting": "Selecting…",
+  "lowball.button.send": "Send %s",
+  "lowball.button.send.empty": "Send",
+  "lowball.button.clear": "Clear",
+
+  "lowball.status.connected": "Connected",
+  "lowball.status.connecting": "Connecting…",
+  "lowball.status.offline": "App offline",
+
+  "lowball.hint.armed": "Clicks pick items",
+
+  "lowball.flash.sent": "Sent %s item(s)",
+  "lowball.flash.cleared": "Cleared %s",
+  "lowball.flash.unreadable": "Slot unreadable",
+  "lowball.flash.full": "Limit is %s items",
+
+  "lowball.tooltip.select": "Arm the tool. While it is on, clicking a slot picks that item for pricing instead of moving it — the click is swallowed, so nothing reaches the server. Stays on across screens, so you can pick out of a chest and carry on in the trade window.",
+  "lowball.tooltip.send": "Send what you have picked to the desktop app.",
+  "lowball.tooltip.send.offline": "The desktop app is not running. What you send is held and delivered as soon as it starts.",
+  "lowball.tooltip.clear": "Forget everything picked, here and on any other screen."
 }

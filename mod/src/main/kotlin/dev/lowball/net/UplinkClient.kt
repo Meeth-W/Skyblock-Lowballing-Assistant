@@ -51,6 +51,16 @@ class UplinkClient(
     val isConnected: Boolean
         get() = socket.get() != null
 
+    /**
+     * True while a connection attempt is in flight.
+     *
+     * Surfaced so the panel can say "connecting" rather than flipping between
+     * "offline" and "connected" with nothing in between. Between attempts the
+     * answer is honestly "offline", and the panel says so.
+     */
+    val isConnecting: Boolean
+        get() = connecting.get()
+
     fun start() {
         if (!running.compareAndSet(false, true)) return
         scheduler.execute(::connect)

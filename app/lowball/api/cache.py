@@ -27,6 +27,12 @@ TTL_SOLD = 15 * 60
 TTL_AUCTION = 24 * 60 * 60
 TTL_DEFAULT = 10 * 60
 
+#: A player's name, which changes at most every 30 days and usually never.
+#: Kept long because the only thing it costs to be slightly wrong is a command
+#: the user can see is wrong before they run it, and the only thing it costs to
+#: be right is a request during a live trade.
+TTL_PLAYER_NAME = 7 * 24 * 60 * 60
+
 MIN_TTL = 60
 MAX_TTL = 6 * 60 * 60
 

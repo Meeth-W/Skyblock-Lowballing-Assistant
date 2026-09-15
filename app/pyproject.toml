@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lowball"
-version = "0.1.0"
+version = "0.3.0"
 description = "Hypixel SkyBlock lowballing assistant - valuation, offer model and ledger"
 requires-python = ">=3.12"
 dependencies = [

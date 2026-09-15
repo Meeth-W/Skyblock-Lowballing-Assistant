@@ -141,6 +141,7 @@ class KeyValueRow(QWidget):
         value: str = "",
         *,
         numeric: bool = True,
+        value_widget: QLabel | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -149,11 +150,22 @@ class KeyValueRow(QWidget):
         row.setSpacing(GRID * 2)
         self.label = QLabel(label)
         self.label.setObjectName("dim")
-        self.value = NumericLabel(value) if numeric else QLabel(value)
-        if not numeric:
+        if value_widget is not None:
+            # A caller that needs the figure to be something more than a label
+            # -- a link to the listing it came from -- supplies it, and the row
+            # still lines it up with every other row in the column.
+            self.value = value_widget
+            self.value.setObjectName("numeric")
+            self.value.setFont(numeric_font(13))
             self.value.setAlignment(
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
             )
+        else:
+            self.value = NumericLabel(value) if numeric else QLabel(value)
+            if not numeric:
+                self.value.setAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
         row.addWidget(self.label)
         row.addStretch(1)
         row.addWidget(self.value)

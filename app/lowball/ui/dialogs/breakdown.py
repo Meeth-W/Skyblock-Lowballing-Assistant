@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...api.coflnet import attribution_url
 from ...money import format_coins, format_coins_exact, format_pct, parse_coins
 from ...pricing.valuation import Valuation
 from ...timeutil import format_duration
@@ -43,6 +44,7 @@ from ..theme import (
     ui_font,
 )
 from ..widgets.indicators import ConfidenceDots
+from ..widgets.links import AuctionLink, UrlLink
 from ..widgets.primitives import Hairline, KeyValueRow, SectionLabel
 
 
@@ -51,6 +53,8 @@ class ValuationBreakdownDialog(QDialog):
 
     #: Coins, or None to go back to the market estimate.
     override_requested = Signal(object)
+    #: (action, auction) -- a market figure was clicked. See widgets.links.
+    auction_action = Signal(str, object)
 
     def __init__(self, valuation: Valuation, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -158,8 +162,20 @@ class ValuationBreakdownDialog(QDialog):
         evidence.addWidget(
             KeyValueRow("Matching sales", str(v.search.sales_count))
         )
-        evidence.addWidget(KeyValueRow("Median of those", format_coins(v.median)))
-        evidence.addWidget(KeyValueRow("Lowest BIN", format_coins(v.lbin_price)))
+        median_link = UrlLink(
+            format_coins(v.median),
+            attribution_url(v.sig.tag),
+            hint=f"n={v.search.sales_count} matching sales",
+        )
+        evidence.addWidget(KeyValueRow("Median of those", value_widget=median_link))
+
+        lbin_link = AuctionLink(
+            format_coins(v.lbin_price),
+            v.lbin.listing,
+            note="The cheapest matching listing",
+        )
+        lbin_link.activated.connect(self.auction_action.emit)
+        evidence.addWidget(KeyValueRow("Lowest BIN", value_widget=lbin_link))
         if v.lbin.rejected_count:
             self._line(
                 evidence,

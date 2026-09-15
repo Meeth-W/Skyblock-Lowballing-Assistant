@@ -186,6 +186,7 @@ def _tokens(families: dict[str, str]) -> dict[str, object]:
         "gain": GAIN,
         "loss": LOSS,
         "radius": RADIUS,
+        "grid": GRID,
         "micro": SIZE_MICRO,
         "body": SIZE_BODY,
         "figure": SIZE_FIGURE,
@@ -323,6 +324,15 @@ QScrollBar::handle:horizontal {{
 }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
+
+QMenu {{
+    background: {surface_high};
+    border: 1px solid {hairline};
+    padding: {grid}px 0;
+}}
+QMenu::item {{ padding: 6px 16px; background: transparent; color: {ink_dim}; }}
+QMenu::item:selected {{ background: {surface_raised}; color: {ink}; }}
+QMenu::separator {{ height: 1px; background: {hairline}; margin: {grid}px 0; }}
 
 QToolTip {{
     background: {surface_raised};
